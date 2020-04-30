@@ -4,7 +4,7 @@
 # golang debian buster 1.14 linux/amd64
 # https://github.com/docker-library/golang/blob/master/1.14/buster/Dockerfile
 #FROM golang@sha256:eee8c0a92bc950ecb20d2dffe46546da12147e3146f1b4ed55072c10cacf4f4c as builder
-FROM golang@sha256:09b04534495af5148e4cc67c8ac55408307c2d7b9e6ce70f6e05f7f02e427f68
+FROM golang@sha256:09b04534495af5148e4cc67c8ac55408307c2d7b9e6ce70f6e05f7f02e427f68 as builder
 
 # Ensure ca-certficates are up to date
 RUN update-ca-certificates
@@ -13,15 +13,16 @@ WORKDIR $GOPATH/src/gwc-server/
 
 # use modules
 COPY go.mod .
+COPY go.sum .
 
 ENV GO111MODULE=on
 RUN go mod download
 RUN go mod verify
 
-COPY app/ .
-COPY config/ .
-COPY db/ .
-COPY internal/ .
+COPY app/ app/
+COPY config/ config/
+COPY db/ db/
+COPY internal/ internal/
 #COPY vendor/ .
 
 
@@ -39,7 +40,7 @@ FROM gcr.io/distroless/base@sha256:54c459100e9d420e023b0aecc43f7010d2731b6163dd8
 # Copy our static executable
 COPY --from=builder /go/bin/gwc-server /go/bin/gwc-server
 
-EXPOSE 80
+EXPOSE 8080
 
 # Run the hello binary.
 ENTRYPOINT ["/go/bin/gwc-server"]
