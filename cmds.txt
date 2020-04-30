@@ -1,0 +1,2 @@
+docker build . -t gwc-test
+docker run --rm -v config.yml:/go/bin/gwc-server/config.yml -p 8080:80 gwc-test

@@ -1,0 +1,21 @@
+log:
+    file: /app.log
+    level: info
+
+webserver:
+    port: 80
+    logfile: /access.log
+    debug: false
+
+database:
+    name: nutsdb
+
+wireguard:
+    ssh:
+        serverAddress: 10.10.30.40
+        sshUser: test
+        sshPrivateKey: "ed25519_test.key"
+        sshKnownHosts: "known_hosts"
+    wgServer: wg.my.com
+    wgIPSpace: "10.80.80" # 10.80.80.2-10.80.80.254
+    wgIPBegin: "10" # 10.80.80.10-10.80.80.254
