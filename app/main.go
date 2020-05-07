@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"io"
+	"os"
 
-	c "jirm.cz/gwc-server/config"
+	c "jirm.cz/gwc-server/internal/config"
 	server "jirm.cz/gwc-server/internal/server"
+
 	//db "jirm.cz/gwc-server/db"
-	
-	"github.com/spf13/viper"
+
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 func readConfig(log *logrus.Logger, configName, configType string) c.Configs {
@@ -20,6 +21,7 @@ func readConfig(log *logrus.Logger, configName, configType string) c.Configs {
 
 	// Set the path to look for the configurations file
 	viper.AddConfigPath(".")
+	viper.AddConfigPath("/gwc")
 
 	// Enable VIPER to read Environment Variables
 	viper.AutomaticEnv()
@@ -30,7 +32,7 @@ func readConfig(log *logrus.Logger, configName, configType string) c.Configs {
 	if err := viper.ReadInConfig(); err != nil {
 		log.Error("Error reading config file, %s", err)
 	}
-	
+
 	// Set undefined variables
 	//viper.SetDefault("database.dbname", "test_db")
 
@@ -45,8 +47,8 @@ func readConfig(log *logrus.Logger, configName, configType string) c.Configs {
 func main() {
 	var log = logrus.New()
 
-    Formatter := new(logrus.TextFormatter)
-    Formatter.TimestampFormat = "2006-01-02 15:04:05"
+	Formatter := new(logrus.TextFormatter)
+	Formatter.TimestampFormat = "2006-01-02 15:04:05"
 	Formatter.FullTimestamp = true
 	Formatter.DisableColors = true
 	log.SetFormatter(Formatter)
@@ -69,11 +71,11 @@ func main() {
 	}
 
 	var filename string = config.Log.File
-    f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-    if err != nil {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	if err != nil {
 		fmt.Println(err)
 		log.SetOutput(os.Stdout)
-    } else {
+	} else {
 		mw := io.MultiWriter(os.Stdout, f)
 		log.SetOutput(mw)
 		log.Info("Starting Application")

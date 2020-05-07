@@ -3,6 +3,7 @@ package ssh
 import (
 	"bytes"
 	"time"
+
 	//"fmt"
 	"io/ioutil"
 	//"log"
@@ -11,15 +12,15 @@ import (
 	"golang.org/x/crypto/ssh"
 	kh "golang.org/x/crypto/ssh/knownhosts"
 
-	config "jirm.cz/gwc-server/config"
+	config "jirm.cz/gwc-server/internal/config"
 )
 
 // var (
-// 	sshConfig 
+// 	sshConfig
 // )
 
 // InitSSH exported
-func InitSSH(log *logrus.Logger, config config.Configs) (string) {
+func InitSSH(log *logrus.Logger, config config.Configs) string {
 	// user := "user"
 	// address := "192.168.0.17"
 	user := config.Wireguard.SSH.SSHUser
@@ -63,7 +64,7 @@ func InitSSH(log *logrus.Logger, config config.Configs) (string) {
 			ssh.KeyAlgoED25519,
 		},
 		// optional tcp connect timeout
-		Timeout:         5 * time.Second,
+		Timeout: 5 * time.Second,
 	}
 	// Connect to the remote server and perform the SSH handshake.
 	client, err := ssh.Dial("tcp", address+":"+port, sshConfig)
