@@ -22,3 +22,4 @@ ed25519_test.key.pub
 ed25519_test.key
 known_hosts
 nutsdb/
+db/
