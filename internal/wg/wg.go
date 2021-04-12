@@ -7,14 +7,12 @@ import (
 )
 
 // GenerateWGKey exported
-func GenerateWGKey() (string, string, error){
-	
+func GenerateWGKey() (string, string, error) {
+
 	pKey, err := wg.GenerateKey()
 	if err != nil {
-		return "","",err
+		return "", "", err
 	}
-	//fmt.Println("Private key: %v",pKey.String())
 	pubKey := pKey.PublicKey()
-	//fmt.Println("Public key: %v",pubKey.String())
-	return pKey.String(),pubKey.String(),nil
+	return pKey.String(), pubKey.String(), nil
 }

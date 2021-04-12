@@ -14,8 +14,6 @@ import (
 	"jirm.cz/gwc-server/internal/wg"
 )
 
-// TODO: .. Configuration https://stackoverflow.com/questions/16465705/how-to-handle-configuration-in-go
-
 // MyServer server instance
 func MyServer(log *logrus.Logger, config config.Configs) {
 
@@ -23,18 +21,17 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	if !(config.Webserver.Debug) {
 		gin.SetMode(gin.ReleaseMode)
 	}
-	// Disable Console Color, you don't need console color when writing the logs to file.
+	// Disable Console Color
 	gin.DisableConsoleColor()
 
-	// Logging to a file.
-	//log.Info("Webserver access log file: " + config.Webserver.Logfile)
-	//f, _ := os.OpenFile(config.Webserver.Logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	//gin.DefaultWriter = io.MultiWriter(f, os.Stdout)
+	// Disable gin logging
 	gin.DefaultWriter = ioutil.Discard
 
 	r := gin.Default()
 
 	r.GET("/", func(c *gin.Context) {
+
+		// Check if right cookie is present
 		cookie, err := c.Cookie(config.Cookie.Name)
 		if err != nil {
 			msg := "Wrong cookie set"
@@ -43,8 +40,8 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			return
 		}
 
+		// Check cookie format
 		parts := strings.Split(cookie, "|")
-
 		if len(parts) != 3 {
 			msg := "Wrong cookie format"
 			log.Error(msg)
@@ -52,31 +49,25 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			return
 		}
 
+		log.Info("New request by " + parts[2] + " from IP " + c.ClientIP())
+
+		// Validate cookie
 		valid := validate.ValidateCookie(log, config, parts[0], parts[1], parts[2]) // for key, value := range c.Request.Header {
 		if valid {
+
+			// Cookie is valid -> run SSH cmd
+			log.Info("Running SSH command: " + config.SSH.Command)
 			c.String(200, ssh.RunSshCommand(log, config))
 		} else {
 			msg := "Cookie is not valid!"
-			log.Error(msg)
 			c.String(400, msg)
 			return
 		}
 
 	})
 
-	r.GET("/ping", func(c *gin.Context) {
-		//c.JSON(200, c.Request.Header)
-		var cki, err = c.Request.Cookie("foo")
-		if err != nil {
-			log.Error("Unable to obtain cookie: foo")
-			c.String(400, "Unable to obtain cookie: foo")
-		} else {
-			c.JSON(200, cki.Value)
-		}
-	})
-
+	// Test
 	r.GET("/cookie", func(c *gin.Context) {
-		//fmt.Println(c.Request.Header)
 		cookie, err := c.Cookie(config.Cookie.Name)
 		if err != nil {
 			msg := "Wrong cookie set"
@@ -94,7 +85,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			return
 		}
 
-		valid := validate.ValidateCookie(log, config, parts[0], parts[1], parts[2]) // for key, value := range c.Request.Header {
+		valid := validate.ValidateCookie(log, config, parts[0], parts[1], parts[2])
 
 		c.JSON(200, gin.H{
 			"isValid": valid,
@@ -104,14 +95,9 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		})
 	})
 
-	r.GET("/ssh", func(c *gin.Context) {
-
-		c.JSON(200, gin.H{
-			"sshOut": ssh.RunSshCommand(log, config),
-		})
-	})
-
+	// Generate WireGuard keys
 	r.GET("/generate", func(c *gin.Context) {
+		log.Info("Generating WireGuard keys")
 		privKey, pubKey, err := wg.GenerateWGKey()
 		if err != nil {
 			msg := "Unable to generate WireGuard Keys"
@@ -127,5 +113,5 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	})
 
 	portNumber := ":" + strconv.Itoa(config.Webserver.Port)
-	r.Run(portNumber) // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	r.Run(portNumber)
 }

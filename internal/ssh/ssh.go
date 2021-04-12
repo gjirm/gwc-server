@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"time"
 
-	//"fmt"
 	"io/ioutil"
-	//"log"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -15,21 +13,17 @@ import (
 	config "jirm.cz/gwc-server/internal/config"
 )
 
-// var (
-// 	sshConfig
-// )
-
-// InitSSH exported
+// RunSshCommand exported
 func RunSshCommand(log *logrus.Logger, config config.Configs) string {
 
 	user := config.SSH.SSHUser
 	address := config.SSH.ServerAddress
-	port := "22"
+	port := config.SSH.Port
 
-	// key, err := ioutil.ReadFile("/Users/user/.ssh/id_rsa")
+	// Read SSH private key from file
 	key, err := ioutil.ReadFile(config.SSH.SSHPrivateKey)
 	if err != nil {
-		log.Error("unable to read private key: %v", err)
+		log.Errorf("unable to read private key: %v", err)
 		return "SSH unable to read private key"
 	}
 
@@ -40,10 +34,10 @@ func RunSshCommand(log *logrus.Logger, config config.Configs) string {
 		return "SSH unable to parse private key"
 	}
 
-	// hostKeyCallback, err := kh.New("/Users/user/.ssh/known_hosts")
+	// Read known_hosts from file
 	hostKeyCallback, err := kh.New(config.SSH.SSHKnownHosts)
 	if err != nil {
-		log.Error("could not create hostkeycallback function: ", err)
+		log.Errorf("could not create hostkeycallback function: ", err)
 		return "SSH could not create hostkeycallback function"
 	}
 
@@ -68,13 +62,13 @@ func RunSshCommand(log *logrus.Logger, config config.Configs) string {
 	// Connect to the remote server and perform the SSH handshake.
 	client, err := ssh.Dial("tcp", address+":"+port, sshConfig)
 	if err != nil {
-		log.Error("unable to connect: %v", err)
+		log.Errorf("unable to connect: %v", err)
 		return "SSH unable to connect"
 	}
 	defer client.Close()
 	ss, err := client.NewSession()
 	if err != nil {
-		log.Error("unable to create SSH session: ", err)
+		log.Errorf("unable to create SSH session: ", err)
 		return "SSH unable to create SSH session"
 	}
 	defer ss.Close()

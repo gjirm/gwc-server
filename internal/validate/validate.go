@@ -22,7 +22,6 @@ func cookieSignature(domain, email, expires string, secret string) string {
 // ValidateCookie
 func ValidateCookie(log *logrus.Logger, config config.Configs, hash string, expires string, userMail string) bool {
 
-	//mac, err := base64.URLEncoding.DecodeString("IMU7VWeJ3-KGd7h5yBbkBkPYrtf0qEG9UaAkrHL2TA4=")
 	mac, err := base64.URLEncoding.DecodeString(hash)
 	if err != nil {
 		log.Error("Unable to decode cookie mac")
@@ -31,7 +30,6 @@ func ValidateCookie(log *logrus.Logger, config config.Configs, hash string, expi
 
 	expectedSignature := cookieSignature(config.Cookie.Domain, userMail, expires, config.Cookie.Secret)
 
-	//expectedSignature := cookieSignature("safetica.cloud", "jiri.matejicek@safetica.com", "1587430262")
 	expected, err := base64.URLEncoding.DecodeString(expectedSignature)
 	if err != nil {
 		log.Error("Unable to generate mac")
@@ -40,10 +38,10 @@ func ValidateCookie(log *logrus.Logger, config config.Configs, hash string, expi
 
 	// Valid token?
 	if !hmac.Equal(mac, expected) {
-		log.Error("Invalid cookie mac")
+		log.Error("Invalid cookie mac for user " + userMail)
 		return false
 	} else {
-		log.Info("Cookie is valid!")
+		log.Info("Cookie for user " + userMail + " is valid")
 		return true
 	}
 

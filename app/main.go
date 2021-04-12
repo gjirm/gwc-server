@@ -71,21 +71,8 @@ func main() {
 	}
 
 	log.SetOutput(os.Stdout)
-	//log.Info("Starting Application")
-
-	// var filename string = config.Log.File
-	// f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	log.SetOutput(os.Stdout)
-	// } else {
-	// 	mw := io.MultiWriter(os.Stdout, f)
-	// 	log.SetOutput(mw)
-	// 	log.Info("Starting Application")
-	// 	log.Info("Application log file: " + config.Log.File)
-	// }
 
 	// Init webserver
 	server.MyServer(log, config)
-	//db.DbTest()
+
 }

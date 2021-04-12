@@ -29,6 +29,7 @@ type CookieConfig struct {
 // WGSSH exported
 type WGSSH struct {
 	ServerAddress string
+	Port          string
 	SSHUser       string
 	SSHPrivateKey string
 	SSHKnownHosts string
