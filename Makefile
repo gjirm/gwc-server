@@ -27,7 +27,7 @@ clean:
 .PHONY: build_docker
 build-docker:
 	@printf "\033[32m--> Building GWC Server docker image\n\033[0m"
-	docker build --tag --tag $(IMAGENAME) --tag $(IMAGELATEST) .
+	docker build --tag $(IMAGENAME) --tag $(IMAGELATEST) .
 
 .PHONY: build-docker-no-cache-tag
 build-docker-no-cache-tag:
