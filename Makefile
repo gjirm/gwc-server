@@ -1,39 +1,36 @@
-VERSION=`git rev-parse HEAD`
-BUILD=`date +%FT%T%z`
-LDFLAGS=-ldflags "-X main.Version=${VERSION} -X main.Build=${BUILD}"
-
-.PHONY: help
-help: ## - Show help message
-	@printf "\033[32m\xE2\x9c\x93 usage: make [target]\n\n\033[0m"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-
-.PHONY: build
-build:	## - Build the smallest and secured golang docker image based on distroless
-	@printf "\033[32m\xE2\x9c\x93 Build the smallest and secured golang docker image based on distroless\n\033[0m"
-	@export DOCKER_CONTENT_TRUST=1 && docker build -f Dockerfile -t smallest-secured-golang-distroless .
-
-.PHONY: build-no-cache
-build-no-cache:	## - Build the smallest and secured golang docker image based on scratch with no cache
-	@printf "\033[32m\xE2\x9c\x93 Build the smallest and secured golang docker image based on scratch\n\033[0m"
-	@export DOCKER_CONTENT_TRUST=1 && docker build --no-cache -f Dockerfile -t smallest-secured-golang-distroless .
-
-.PHONY: ls
-ls: ## - List 'smallest-secured-golang' docker images
-	@printf "\033[32m\xE2\x9c\x93 Look at the size dude !\n\033[0m"
-	@docker image ls smallest-secured-golang-distroless
+HEADHASH := $(shell git rev-parse --short HEAD)
+DT := $(shell date +%Y-%m-%d_%H%M%S)
+TAG = "$(DT)-$(HEADHASH)"
+IMAGENAME = "jirm/gwc-server:$(TAG)"
+IMAGELATEST = "jirm/gwc-server:latest"
+PWD := $(shell pwd)
 
 .PHONY: run
-run:	## - Run the smallest and secured golang docker image based on distroless
-	@printf "\033[32m\xE2\x9c\x93 Run the smallest and secured golang docker image based on scratch\n\033[0m"
-	@docker run smallest-secured-golang-distroless:latest
+run:
+	@printf "\033[32m--> Running GWC Server...\n\033[0m"
+	go run ./app
 
-.PHONY: push-to-azure
-push-to-azure:	## - Push docker image to azurecr.io container registry
-	@az acr login --name chemidy
-	@docker push chemidy.azurecr.io/smallest-secured-golang-docker-image:$(VERSION)
+.PHONY: build
+build:
+	@printf "\033[32m--> Building GWC Server\n\033[0m"
+	go mod download
+	go mod verify
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-w -s -extldflags "-static"' -a -o ./gwc-server app/main.go
 
-.PHONY: push-to-gcp
-push-to-gcp:	## - Push docker image to gcr.io container registry
-	@gcloud auth application-default login
-	@gcloud auth configure-docker
-	@docker push gcr.io/chemidy/smallest-secured-golang-docker-image:$(VERSION)
+.PHONY: clean
+clean:
+	@printf "\033[32m--> Cleaning\n\033[0m"
+	rm -r ./gwc-server
+
+# Building GWC Server docker image
+.PHONY: build-docker
+build-docker:
+	@printf "\033[32m--> Building GWC Server docker image\n\033[0m"
+	docker build --tag $(IMAGENAME) --tag $(IMAGELATEST) .
+
+# Running GWC Server docker container
+.PHONY: run-docker
+run-docker:
+	@printf "\033[32m--> Run the GWC Server server\n\033[0m"
+	docker run --rm -v $(PWD)/config.yml:/gwc/config.yml -v $(PWD)/ed25519_test.key:/gwc/ed25519_test.key -v $(PWD)/known_hosts:/gwc/known_hosts -p 8080:8080 jirm/gwc-server
+

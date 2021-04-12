@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"os"
 
 	c "jirm.cz/gwc-server/internal/config"
@@ -45,15 +43,17 @@ func readConfig(log *logrus.Logger, configName, configType string) c.Configs {
 }
 
 func main() {
-	var log = logrus.New()
 
+	// Init logging
+	var log = logrus.New()
 	Formatter := new(logrus.TextFormatter)
-	Formatter.TimestampFormat = "2006-01-02 15:04:05"
+	//Formatter.TimestampFormat = "2006-01-02 15:04:05"
 	Formatter.FullTimestamp = true
 	Formatter.DisableColors = true
 	log.SetFormatter(Formatter)
 	log.SetOutput(os.Stdout)
 
+	// Init config
 	config := readConfig(log, "config", "yml")
 
 	switch config.Log.Level {
@@ -70,18 +70,22 @@ func main() {
 		log.Warnf("Home: invalid log level supplied: '%s'", config.Log.Level)
 	}
 
-	var filename string = config.Log.File
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	if err != nil {
-		fmt.Println(err)
-		log.SetOutput(os.Stdout)
-	} else {
-		mw := io.MultiWriter(os.Stdout, f)
-		log.SetOutput(mw)
-		log.Info("Starting Application")
-		log.Info("Application log file: " + config.Log.File)
-	}
+	log.SetOutput(os.Stdout)
+	//log.Info("Starting Application")
 
+	// var filename string = config.Log.File
+	// f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	log.SetOutput(os.Stdout)
+	// } else {
+	// 	mw := io.MultiWriter(os.Stdout, f)
+	// 	log.SetOutput(mw)
+	// 	log.Info("Starting Application")
+	// 	log.Info("Application log file: " + config.Log.File)
+	// }
+
+	// Init webserver
 	server.MyServer(log, config)
 	//db.DbTest()
 }

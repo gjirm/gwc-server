@@ -1,0 +1,16 @@
+VERSION := $(shell git rev-parse --short HEAD)
+BUILD := $(shell date +%FT%T%z)
+HOSTS=my.example.server
+
+
+# Building WebWormhole docker image
+.PHONY: ww_build
+ww_build:
+	@printf "\033[32m--> Building WebWormhole docker image\n\033[0m"
+	docker build --tag ww:$(VERSION) --tag ww:latest .
+
+# Running WebWormhole docker container
+.PHONY: ww_run
+ww_run:
+	@printf "\033[32m--> Run the WebWormhole server\n\033[0m"
+	docker run -d -p 443:9000 -p 80:8000 --name ww:$(VERSION) ww:$(VERSION) -https="0.0.0.0:9000" -http="0.0.0.0:8000" -hosts="$(HOSTS)"

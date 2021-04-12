@@ -20,30 +20,31 @@ import (
 // )
 
 // InitSSH exported
-func InitSSH(log *logrus.Logger, config config.Configs) string {
-	// user := "user"
-	// address := "192.168.0.17"
-	user := config.Wireguard.SSH.SSHUser
-	address := config.Wireguard.SSH.ServerAddress
-	command := "sudo wg"
+func RunSshCommand(log *logrus.Logger, config config.Configs) string {
+
+	user := config.SSH.SSHUser
+	address := config.SSH.ServerAddress
 	port := "22"
 
 	// key, err := ioutil.ReadFile("/Users/user/.ssh/id_rsa")
-	key, err := ioutil.ReadFile(config.Wireguard.SSH.SSHPrivateKey)
+	key, err := ioutil.ReadFile(config.SSH.SSHPrivateKey)
 	if err != nil {
 		log.Error("unable to read private key: %v", err)
+		return "SSH unable to read private key"
 	}
 
 	// Create the Signer for this private key.
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
 		log.Error("unable to parse private key: %v", err)
+		return "SSH unable to parse private key"
 	}
 
 	// hostKeyCallback, err := kh.New("/Users/user/.ssh/known_hosts")
-	hostKeyCallback, err := kh.New(config.Wireguard.SSH.SSHKnownHosts)
+	hostKeyCallback, err := kh.New(config.SSH.SSHKnownHosts)
 	if err != nil {
 		log.Error("could not create hostkeycallback function: ", err)
+		return "SSH could not create hostkeycallback function"
 	}
 
 	sshConfig := &ssh.ClientConfig{
@@ -56,12 +57,10 @@ func InitSSH(log *logrus.Logger, config config.Configs) string {
 
 		// optional host key algo list
 		HostKeyAlgorithms: []string{
-			// ssh.KeyAlgoRSA,
-			// ssh.KeyAlgoDSA,
-			// ssh.KeyAlgoECDSA256,
+			ssh.KeyAlgoECDSA256,
 			// ssh.KeyAlgoECDSA384,
 			// ssh.KeyAlgoECDSA521,
-			ssh.KeyAlgoED25519,
+			// ssh.KeyAlgoED25519,
 		},
 		// optional tcp connect timeout
 		Timeout: 5 * time.Second,
@@ -70,18 +69,19 @@ func InitSSH(log *logrus.Logger, config config.Configs) string {
 	client, err := ssh.Dial("tcp", address+":"+port, sshConfig)
 	if err != nil {
 		log.Error("unable to connect: %v", err)
+		return "SSH unable to connect"
 	}
 	defer client.Close()
 	ss, err := client.NewSession()
 	if err != nil {
 		log.Error("unable to create SSH session: ", err)
+		return "SSH unable to create SSH session"
 	}
 	defer ss.Close()
 	// Creating the buffer which will hold the remotly executed command's output.
 	var stdoutBuf bytes.Buffer
 	ss.Stdout = &stdoutBuf
-	ss.Run(command)
-	// Let's print out the result of command.
-	//fmt.Println(stdoutBuf.String())
+	ss.Run(config.SSH.Command)
+
 	return stdoutBuf.String()
 }
