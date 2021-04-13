@@ -33,5 +33,4 @@ type WGSSH struct {
 	SSHUser       string
 	SSHPrivateKey string
 	SSHKnownHosts string
-	Command       string
 }

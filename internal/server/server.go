@@ -52,12 +52,15 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		log.Info("New request by " + parts[2] + " from IP " + c.ClientIP())
 
 		// Validate cookie
-		valid := validate.ValidateCookie(log, config, parts[0], parts[1], parts[2]) // for key, value := range c.Request.Header {
+		valid := validate.ValidateCookie(log, config, parts[0], parts[1], parts[2])
 		if valid {
 
-			// Cookie is valid -> run SSH cmd
-			log.Info("Running SSH command: " + config.SSH.Command)
-			c.String(200, ssh.RunSshCommand(log, config))
+			// Get username
+			command := strings.Split(parts[2], "@")
+
+			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
+			log.Info("Running SSH command: " + command[0])
+			c.String(200, ssh.RunSshCommand(log, config, command[0]))
 		} else {
 			msg := "Cookie is not valid!"
 			c.String(400, msg)

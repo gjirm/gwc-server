@@ -38,5 +38,5 @@ build-docker-no-cache-tag:
 .PHONY: run_docker
 run-docker:
 	@printf "\033[32m--> Run the GWC Server server\n\033[0m"
-	docker run --rm -v $(PWD)/config.yml:/gwc/config.yml -v $(PWD)/ed25519_test.key:/gwc/ed25519_test.key -v $(PWD)/known_hosts:/gwc/known_hosts -p 8080:8080 jirm/gwc-server
+	docker run --rm -v $(PWD)/config_docker.yml:/gwc/config.yml -v $(PWD)/ed25519_test.key:/gwc/ed25519_test.key -v $(PWD)/known_hosts:/gwc/known_hosts -p 8080:8080 jirm/gwc-server
 

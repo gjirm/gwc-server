@@ -16,6 +16,7 @@
 #vendor/
 
 config.yml
+config_docker.yml
 app.log
 access.log
 ed25519_test.key.pub

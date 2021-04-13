@@ -14,7 +14,7 @@ import (
 )
 
 // RunSshCommand exported
-func RunSshCommand(log *logrus.Logger, config config.Configs) string {
+func RunSshCommand(log *logrus.Logger, config config.Configs, command string) string {
 
 	user := config.SSH.SSHUser
 	address := config.SSH.ServerAddress
@@ -75,7 +75,7 @@ func RunSshCommand(log *logrus.Logger, config config.Configs) string {
 	// Creating the buffer which will hold the remotly executed command's output.
 	var stdoutBuf bytes.Buffer
 	ss.Stdout = &stdoutBuf
-	ss.Run(config.SSH.Command)
+	ss.Run(command)
 
 	return stdoutBuf.String()
 }
