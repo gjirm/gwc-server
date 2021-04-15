@@ -4,45 +4,58 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-
-	"github.com/sirupsen/logrus"
+	"strconv"
+	"strings"
+	"time"
 
 	"jirm.cz/gwc-server/internal/config"
 )
 
 // Create cookie hmac
-func cookieSignature(domain, email, expires string, secret string) string {
-	hash := hmac.New(sha256.New, []byte(secret))
-	hash.Write([]byte(domain))
+func cookieSignature(config config.Configs, email, expires string) string {
+	hash := hmac.New(sha256.New, []byte(config.Cookie.Secret))
+	hash.Write([]byte(config.Cookie.Domain))
 	hash.Write([]byte(email))
 	hash.Write([]byte(expires))
 	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
 }
 
-// ValidateCookie
-func ValidateCookie(log *logrus.Logger, config config.Configs, hash string, expires string, userMail string) bool {
+// ValidateCookie verifies that a cookie matches the expected format of:
+// Cookie = hash(secret, cookie domain, email, expires)|expires|email
+func ValidateCookie(config config.Configs, cookie string) (bool, string) {
 
-	mac, err := base64.URLEncoding.DecodeString(hash)
-	if err != nil {
-		log.Error("Unable to decode cookie mac")
-		return false
+	// Check cookie format
+	parts := strings.Split(cookie, "|")
+	if len(parts) != 3 {
+		return false, "Wrong cookie format"
 	}
 
-	expectedSignature := cookieSignature(config.Cookie.Domain, userMail, expires, config.Cookie.Secret)
+	mac, err := base64.URLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false, "Unable to decode cookie mac"
+	}
 
+	expectedSignature := cookieSignature(config, parts[2], parts[1])
 	expected, err := base64.URLEncoding.DecodeString(expectedSignature)
 	if err != nil {
-		log.Error("Unable to generate mac")
-		return false
+		return false, "Failed request by " + parts[2] + " - unable to generate mac"
 	}
 
 	// Valid token?
 	if !hmac.Equal(mac, expected) {
-		log.Error("Invalid cookie mac for user " + userMail)
-		return false
-	} else {
-		log.Info("Cookie for user " + userMail + " is valid")
-		return true
+		return false, "Failed request by " + parts[2] + " - invalid cookie mac"
 	}
 
+	expires, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return false, "Failed request by " + parts[2] + " - unable to parse cookie expiry"
+	}
+
+	// Token expired ?
+	if time.Unix(expires, 0).Before(time.Now()) {
+		return false, "Failed request by " + parts[2] + " - cookie has expired"
+	}
+
+	// Token is valid - return true, email
+	return true, parts[2]
 }

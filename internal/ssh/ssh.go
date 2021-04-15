@@ -16,10 +16,6 @@ import (
 // RunSshCommand exported
 func RunSshCommand(log *logrus.Logger, config config.Configs, command string) string {
 
-	user := config.SSH.SSHUser
-	address := config.SSH.ServerAddress
-	port := config.SSH.Port
-
 	// Read SSH private key from file
 	key, err := ioutil.ReadFile(config.SSH.SSHPrivateKey)
 	if err != nil {
@@ -42,7 +38,7 @@ func RunSshCommand(log *logrus.Logger, config config.Configs, command string) st
 	}
 
 	sshConfig := &ssh.ClientConfig{
-		User: user,
+		User: config.SSH.SSHUser,
 		Auth: []ssh.AuthMethod{
 			// Add in password check here for moar security.
 			ssh.PublicKeys(signer),
@@ -60,7 +56,7 @@ func RunSshCommand(log *logrus.Logger, config config.Configs, command string) st
 		Timeout: 5 * time.Second,
 	}
 	// Connect to the remote server and perform the SSH handshake.
-	client, err := ssh.Dial("tcp", address+":"+port, sshConfig)
+	client, err := ssh.Dial("tcp", config.SSH.ServerAddress+":"+config.SSH.Port, sshConfig)
 	if err != nil {
 		log.Errorf("unable to connect: %v", err)
 		return "SSH unable to connect"

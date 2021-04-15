@@ -34,68 +34,26 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		// Check if right cookie is present
 		cookie, err := c.Cookie(config.Cookie.Name)
 		if err != nil {
-			msg := "Wrong cookie set"
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
 			log.Error(msg)
 			c.String(400, msg)
 			return
 		}
-
-		// Check cookie format
-		parts := strings.Split(cookie, "|")
-		if len(parts) != 3 {
-			msg := "Wrong cookie format"
-			log.Error(msg)
-			c.String(400, msg)
-			return
-		}
-
-		log.Info("New request by " + parts[2] + " from IP " + c.ClientIP())
 
 		// Validate cookie
-		valid := validate.ValidateCookie(log, config, parts[0], parts[1], parts[2])
+		valid, msg := validate.ValidateCookie(config, cookie)
 		if valid {
-
-			// Get username
-			command := strings.Split(parts[2], "@")
-
 			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
-			log.Info("Running SSH command: " + command[0])
-			c.String(200, ssh.RunSshCommand(log, config, command[0]))
+			log.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+			user := strings.Split(msg, "@")
+			command := user[0] + " " + c.ClientIP()
+			log.Info("Running SSH command: " + command)
+			c.String(200, ssh.RunSshCommand(log, config, command))
 		} else {
-			msg := "Cookie is not valid!"
-			c.String(400, msg)
-			return
-		}
-
-	})
-
-	// Test
-	r.GET("/cookie", func(c *gin.Context) {
-		cookie, err := c.Cookie(config.Cookie.Name)
-		if err != nil {
-			msg := "Wrong cookie set"
 			log.Error(msg)
 			c.String(400, msg)
 			return
 		}
-
-		parts := strings.Split(cookie, "|")
-
-		if len(parts) != 3 {
-			msg := "Wrong cookie format"
-			log.Error(msg)
-			c.String(400, msg)
-			return
-		}
-
-		valid := validate.ValidateCookie(log, config, parts[0], parts[1], parts[2])
-
-		c.JSON(200, gin.H{
-			"isValid": valid,
-			"hash":    parts[0],
-			"expires": parts[1],
-			"mail":    parts[2],
-		})
 	})
 
 	// Generate WireGuard keys
