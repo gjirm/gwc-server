@@ -14,7 +14,7 @@ import (
 )
 
 // RunSshCommand exported
-func RunSshCommand(log *logrus.Logger, config config.Configs, command string) string {
+func RunSshCommand(log *logrus.Entry, config config.Configs, command string) string {
 
 	// Read SSH private key from file
 	key, err := ioutil.ReadFile(config.SSH.SSHPrivateKey)

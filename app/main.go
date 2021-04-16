@@ -46,10 +46,11 @@ func main() {
 
 	// Init logging
 	var log = logrus.New()
-	Formatter := new(logrus.TextFormatter)
+	//Formatter := new(logrus.TextFormatter)
+	Formatter := new(logrus.JSONFormatter)
 	//Formatter.TimestampFormat = "2006-01-02 15:04:05"
-	Formatter.FullTimestamp = true
-	Formatter.DisableColors = true
+	//Formatter.FullTimestamp = true
+	//Formatter.DisableColors = true
 	log.SetFormatter(Formatter)
 	log.SetOutput(os.Stdout)
 
