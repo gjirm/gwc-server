@@ -58,7 +58,6 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	})
 
 	// Add new user peer to VPN
-	// Peer name: <user>-<suffixe>
 	r.GET("/api/add/:name/:suffix/:totp", func(c *gin.Context) {
 
 		cLog := log.WithFields(logrus.Fields{
@@ -86,7 +85,170 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			suffix := c.Param("suffix")
 			totp := c.Param("totp")
 
-			command := user[0] + " " + c.ClientIP() + " " + "add " + name + " " + suffix + " " + totp
+			// :admin :ip :totp add :user :suffix
+			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "add " + name + " " + suffix
+
+			cLog.Info("Running SSH command: " + command)
+			c.String(200, ssh.RunSshCommand(cLog, config, command))
+			//c.String(200, command)
+
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+	})
+
+	// List all users and peers
+	r.GET("/api/list/users/:totp", func(c *gin.Context) {
+
+		cLog := log.WithFields(logrus.Fields{
+			"action":    "api",
+			"operation": "list",
+		})
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+			totp := c.Param("totp")
+
+			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list users"
+
+			cLog.Info("Running SSH command: " + command)
+			c.String(200, ssh.RunSshCommand(cLog, config, command))
+			//c.String(200, command)
+
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+	})
+
+	// List activated peers
+	r.GET("/api/list/activated/:totp", func(c *gin.Context) {
+
+		cLog := log.WithFields(logrus.Fields{
+			"action":    "api",
+			"operation": "list",
+		})
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+			totp := c.Param("totp")
+
+			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list activated"
+
+			cLog.Info("Running SSH command: " + command)
+			c.String(200, ssh.RunSshCommand(cLog, config, command))
+			//c.String(200, command)
+
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+	})
+
+	// Expire activated peer
+	r.GET("/api/expire/:peer/:totp", func(c *gin.Context) {
+
+		cLog := log.WithFields(logrus.Fields{
+			"action":    "api",
+			"operation": "expire",
+		})
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+			peer := c.Param("peer")
+			totp := c.Param("totp")
+
+			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "expire " + peer
+
+			cLog.Info("Running SSH command: " + command)
+			c.String(200, ssh.RunSshCommand(cLog, config, command))
+			//c.String(200, command)
+
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+	})
+
+	// Delete user
+	r.GET("/api/del/:user/:totp", func(c *gin.Context) {
+
+		cLog := log.WithFields(logrus.Fields{
+			"action":    "api",
+			"operation": "del",
+		})
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+			userDelete := c.Param("user")
+			totp := c.Param("totp")
+
+			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "del " + userDelete
 
 			cLog.Info("Running SSH command: " + command)
 			c.String(200, ssh.RunSshCommand(cLog, config, command))

@@ -6,8 +6,6 @@ import (
 	c "jirm.cz/gwc-server/internal/config"
 	server "jirm.cz/gwc-server/internal/server"
 
-	//db "jirm.cz/gwc-server/db"
-
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
