@@ -6,6 +6,7 @@ type Configs struct {
 	Webserver WebserverConfig
 	Cookie    CookieConfig
 	SSH       WGSSH
+	Api       ApiConfig
 }
 
 // LogConfig exported
@@ -17,6 +18,12 @@ type LogConfig struct {
 type WebserverConfig struct {
 	Port  int
 	Debug bool
+}
+
+// ApiConfig exported
+type ApiConfig struct {
+	Admin       bool
+	ActivateAll bool
 }
 
 // CookieConfig exported

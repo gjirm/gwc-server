@@ -10,6 +10,12 @@ cookie:
     secret: "xxxxx"
     domain: "example.com"
 
+api:
+    # Enable admin API /api/...
+    admin: true
+    # Enable activation all peers of the user - path: /
+    activateAll: false
+
 ssh:
     serverAddress: 10.20.30.1
     sshUser: user

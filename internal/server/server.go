@@ -14,6 +14,17 @@ import (
 	"jirm.cz/gwc-server/internal/wg"
 )
 
+// var outHtml = template.Must(template.New("htout").Parse(`
+// <html>
+// <head>
+//   <title>My Test</title>
+// </head>
+// <body>
+//   <p style="color:green;">{{ .out }}</p>
+// </body>
+// </html>
+// `))
+
 // MyServer server instance
 func MyServer(log *logrus.Logger, config config.Configs) {
 
@@ -28,9 +39,16 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	gin.DefaultWriter = ioutil.Discard
 
 	r := gin.Default()
+	//r.SetHTMLTemplate(outHtml)
 
 	r.GET("/", func(c *gin.Context) {
-		cLog := log.WithField("action", "activate")
+
+		if !(config.Api.ActivateAll) {
+			c.String(400, "Not enabled")
+			return
+		}
+
+		cLog := log.WithField("action", "activateAll")
 
 		// Check if right cookie is present
 		cookie, err := c.Cookie(config.Cookie.Name)
@@ -57,8 +75,45 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 	})
 
+	r.GET("/:peer", func(c *gin.Context) {
+
+		cLog := log.WithField("action", "activatePeer")
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+			peer := c.Param("peer")
+
+			command := user[0] + " " + c.ClientIP() + " " + peer
+
+			cLog.Info("Running SSH command: " + command)
+			c.String(200, ssh.RunSshCommand(cLog, config, command))
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+	})
+
 	// Add new user peer to VPN
 	r.GET("/api/add/:name/:suffix/:totp", func(c *gin.Context) {
+
+		if !(config.Api.Admin) {
+			c.String(400, "Api Not enabled")
+			return
+		}
 
 		cLog := log.WithFields(logrus.Fields{
 			"action":    "api",
@@ -89,8 +144,12 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "add " + name + " " + suffix
 
 			cLog.Info("Running SSH command: " + command)
+
+			// c.HTML(200, "htout", gin.H{
+			// 	"out": ssh.RunSshCommand(cLog, config, command),
+			// })
 			c.String(200, ssh.RunSshCommand(cLog, config, command))
-			//c.String(200, command)
+			c.String(200, command)
 
 		} else {
 			cLog.Error(msg)
@@ -102,6 +161,11 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 	// List all users and peers
 	r.GET("/api/list/users/:totp", func(c *gin.Context) {
+
+		if !(config.Api.Admin) {
+			c.String(400, "Api Not enabled")
+			return
+		}
 
 		cLog := log.WithFields(logrus.Fields{
 			"action":    "api",
@@ -143,6 +207,11 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	// List activated peers
 	r.GET("/api/list/activated/:totp", func(c *gin.Context) {
 
+		if !(config.Api.Admin) {
+			c.String(400, "Api Not enabled")
+			return
+		}
+
 		cLog := log.WithFields(logrus.Fields{
 			"action":    "api",
 			"operation": "list",
@@ -183,6 +252,11 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	// Expire activated peer
 	r.GET("/api/expire/:peer/:totp", func(c *gin.Context) {
 
+		if !(config.Api.Admin) {
+			c.String(400, "Api Not enabled")
+			return
+		}
+
 		cLog := log.WithFields(logrus.Fields{
 			"action":    "api",
 			"operation": "expire",
@@ -211,7 +285,6 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 			cLog.Info("Running SSH command: " + command)
 			c.String(200, ssh.RunSshCommand(cLog, config, command))
-			//c.String(200, command)
 
 		} else {
 			cLog.Error(msg)
@@ -223,6 +296,11 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 	// Delete user
 	r.GET("/api/del/:user/:totp", func(c *gin.Context) {
+
+		if !(config.Api.Admin) {
+			c.String(400, "Api Not enabled")
+			return
+		}
 
 		cLog := log.WithFields(logrus.Fields{
 			"action":    "api",
@@ -264,6 +342,11 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 	// Generate WireGuard keys
 	r.GET("/api/generate", func(c *gin.Context) {
+
+		if !(config.Api.Admin) {
+			c.String(400, "Api Not enabled")
+			return
+		}
 
 		cLog := log.WithFields(logrus.Fields{
 			"action":    "api",
