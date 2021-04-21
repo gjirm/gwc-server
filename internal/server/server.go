@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
@@ -13,17 +14,6 @@ import (
 	"jirm.cz/gwc-server/internal/validate"
 	"jirm.cz/gwc-server/internal/wg"
 )
-
-// var outHtml = template.Must(template.New("htout").Parse(`
-// <html>
-// <head>
-//   <title>My Test</title>
-// </head>
-// <body>
-//   <p style="color:green;">{{ .out }}</p>
-// </body>
-// </html>
-// `))
 
 // MyServer server instance
 func MyServer(log *logrus.Logger, config config.Configs) {
@@ -39,8 +29,9 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	gin.DefaultWriter = ioutil.Discard
 
 	r := gin.Default()
-	//r.SetHTMLTemplate(outHtml)
+	r.Use(location.Default())
 
+	// Activate all peers of validated user
 	r.GET("/", func(c *gin.Context) {
 
 		if !(config.Api.ActivateAll) {
@@ -58,6 +49,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			c.String(400, msg)
 			return
 		}
+
 		// Validate cookie
 		valid, msg := validate.ValidateCookie(config, cookie)
 		if valid {
@@ -67,7 +59,12 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			user := strings.Split(msg, "@")
 			command := user[0] + " " + c.ClientIP()
 			cLog.Info("Running SSH command: " + command)
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
+			sshOut := ssh.RunSshCommand(cLog, config, command)
+
+			outHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Activate all WireGuard peers</title></head><body><h3>" + sshOut + " </h3></body></html>"
+
+			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+
 		} else {
 			cLog.Error(msg)
 			c.String(400, msg)
@@ -75,6 +72,53 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 	})
 
+	// List all peers of validated user
+	r.GET("/list", func(c *gin.Context) {
+
+		rURL := location.Get(c)
+
+		cLog := log.WithField("action", "listPeers")
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid -> run SSH cmd - list user WireGuard peers
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+
+			command := user[0] + " " + c.ClientIP() + " list"
+
+			cLog.Info("Running SSH command: " + command)
+			sshOut := ssh.RunSshCommand(cLog, config, command)
+			peersList := strings.Fields(sshOut)
+
+			headHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>List of WireGuard peers</title></head><body><h3>" + user[0] + " peers</h3><p>Click to activate:<ul>"
+			tailHtml := "</ul></p></body></html>"
+
+			for i := 0; i < len(peersList); i++ {
+				headHtml += "<li><a href='" + rURL.Scheme + "://" + c.Request.Host + "/" + peersList[i] + "'>" + peersList[i] + "</a></li>"
+			}
+			outHtml := headHtml + tailHtml
+
+			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+	})
+
+	// Activate users peer
 	r.GET("/:peer", func(c *gin.Context) {
 
 		cLog := log.WithField("action", "activatePeer")
@@ -94,12 +138,20 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
 
 			user := strings.Split(msg, "@")
+
+			// Peer name
 			peer := c.Param("peer")
 
 			command := user[0] + " " + c.ClientIP() + " " + peer
 
 			cLog.Info("Running SSH command: " + command)
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
+
+			sshOut := ssh.RunSshCommand(cLog, config, command)
+
+			outHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Activate WireGuard peer</title></head><body><h3>" + sshOut + " </h3></body></html>"
+
+			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+
 		} else {
 			cLog.Error(msg)
 			c.String(400, msg)
