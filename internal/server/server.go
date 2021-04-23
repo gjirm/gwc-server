@@ -171,6 +171,109 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 	})
 
+	// Activate users peer
+	r.GET("/token/:token", func(c *gin.Context) {
+
+		cLog := log.WithFields(logrus.Fields{
+			"request":   "direct",
+			"operation": "token",
+			"object":    "peer",
+		})
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+
+			token := c.Param("token")
+
+			command := user[0] + " " + c.ClientIP() + " token " + token
+
+			cLog.Info("Running SSH command: " + command)
+
+			sshOut := ssh.RunSshCommand(cLog, config, command)
+
+			if strings.HasPrefix(sshOut, "[Interface]") {
+				// Download configuration
+				peerType := strings.Split(token, "-")
+				c.Header("Content-Disposition", "attachment; filename=wg_"+user[0]+"_"+peerType[0]+".conf")
+				c.Data(200, "application/octet-stream", []byte(sshOut))
+			} else {
+				// Print as text
+				c.String(200, sshOut)
+			}
+
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+	})
+
+	// Create new token
+	r.GET("/api/token/:suffix/:totp", func(c *gin.Context) {
+
+		rURL := location.Get(c)
+
+		if !(config.Api.Admin) {
+			c.String(400, "Api Not enabled")
+			return
+		}
+
+		cLog := log.WithFields(logrus.Fields{
+			"request":   "api",
+			"operation": "token",
+			"object":    "peer",
+		})
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid -> generate new WG configuration
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			user := strings.Split(msg, "@")
+			suffix := c.Param("suffix")
+			totp := c.Param("totp")
+
+			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "token " + suffix
+
+			cLog.Info("Running SSH command: " + command)
+
+			sshOut := ssh.RunSshCommand(cLog, config, command)
+
+			outText := rURL.Scheme + "://" + c.Request.Host + "/token/" + sshOut
+
+			c.String(200, outText)
+
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+	})
+
 	// Add new user peer to VPN
 	r.GET("/api/add/:name/:suffix/:totp", func(c *gin.Context) {
 
