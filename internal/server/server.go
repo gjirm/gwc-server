@@ -114,7 +114,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			tailHtml := "</ul></p></body></html>"
 
 			for i := 0; i < len(peersList); i++ {
-				headHtml += "<li><a href='" + rURL.Scheme + "://" + c.Request.Host + "/" + peersList[i] + "'>" + peersList[i] + "</a></li>"
+				headHtml += "<li><a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "'>" + peersList[i] + "</a></li>"
 			}
 			outHtml := headHtml + tailHtml
 
@@ -127,7 +127,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 	})
 
 	// Activate users peer
-	r.GET("/:peer", func(c *gin.Context) {
+	r.GET("/activate/:peer", func(c *gin.Context) {
 
 		cLog := log.WithFields(logrus.Fields{
 			"request":   "direct",
