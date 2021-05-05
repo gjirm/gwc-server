@@ -44,6 +44,9 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			"operation": "activate",
 			"object":    "all",
 		})
+		// rURL := location.Get(c)
+		// cLog.Info(rURL.Host)
+		// rURL.
 
 		// Check if right cookie is present
 		cookie, err := c.Cookie(config.Cookie.Name)
@@ -116,6 +119,49 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			for i := 0; i < len(peersList); i++ {
 				headHtml += "<li><a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "'>" + peersList[i] + "</a></li>"
 			}
+			outHtml := headHtml + tailHtml
+
+			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+		} else {
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+	})
+
+	// Show URL for generating and download config using token
+	r.GET("/d/token/:token", func(c *gin.Context) {
+
+		rURL := location.Get(c)
+
+		cLog := log.WithFields(logrus.Fields{
+			"request":   "direct",
+			"operation": "token",
+			"object":    "peer",
+		})
+
+		// Check if right cookie is present
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			cLog.Error(msg)
+			c.String(400, msg)
+			return
+		}
+
+		// Validate cookie
+		valid, msg := validate.ValidateCookie(config, cookie)
+		if valid {
+			// Cookie is valid -> run SSH cmd - list user WireGuard peers
+			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+			token := c.Param("token")
+
+			headHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Generate WireGuard peer</title></head><body>"
+			tailHtml := "</p></body></html>"
+
+			headHtml += "<p><a href='" + rURL.Scheme + "://" + c.Request.Host + "/token/" + token + "'>Generate and download WireGuard configuration</p>"
+
 			outHtml := headHtml + tailHtml
 
 			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
@@ -262,7 +308,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 			sshOut := ssh.RunSshCommand(cLog, config, command)
 
-			outText := rURL.Scheme + "://" + c.Request.Host + "/token/" + sshOut
+			outText := rURL.Scheme + "://" + c.Request.Host + "/d/token/" + sshOut
 
 			c.String(200, outText)
 
