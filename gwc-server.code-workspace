@@ -2,9 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"path": "../../../../../mnt/c/Users/jirm/Documents/git/it-scripts/linux/wireguard/gwc-scripts"
 		}
 	],
 	"settings": {}
