@@ -1,4 +1,4 @@
-package validate
+package gwc
 
 import (
 	"crypto/hmac"
@@ -7,12 +7,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"jirm.cz/gwc-server/internal/config"
 )
 
 // Create cookie hmac
-func cookieSignature(config config.Configs, email, expires string) string {
+func cookieSignature(email, expires string) string {
 	hash := hmac.New(sha256.New, []byte(config.Cookie.Secret))
 	hash.Write([]byte(config.Cookie.Domain))
 	hash.Write([]byte(email))
@@ -22,7 +20,7 @@ func cookieSignature(config config.Configs, email, expires string) string {
 
 // ValidateCookie verifies that a cookie matches the expected format of:
 // Cookie = hash(secret, cookie domain, email, expires)|expires|email
-func ValidateCookie(config config.Configs, cookie string) (bool, string) {
+func ValidateCookie(cookie string) (bool, string) {
 
 	// Check cookie format
 	parts := strings.Split(cookie, "|")
@@ -35,7 +33,7 @@ func ValidateCookie(config config.Configs, cookie string) (bool, string) {
 		return false, "Unable to decode cookie mac"
 	}
 
-	expectedSignature := cookieSignature(config, parts[2], parts[1])
+	expectedSignature := cookieSignature(parts[2], parts[1])
 	expected, err := base64.URLEncoding.DecodeString(expectedSignature)
 	if err != nil {
 		return false, "Failed request by " + parts[2] + " - unable to generate mac"

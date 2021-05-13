@@ -1,4 +1,4 @@
-package ssh
+package gwc
 
 import (
 	"bytes"
@@ -6,35 +6,29 @@ import (
 
 	"io/ioutil"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	kh "golang.org/x/crypto/ssh/knownhosts"
-
-	config "jirm.cz/gwc-server/internal/config"
 )
 
 // RunSshCommand exported
-func RunSshCommand(log *logrus.Entry, config config.Configs, command string) string {
+func RunSshCommand(command string) (string, error) {
 
 	// Read SSH private key from file
 	key, err := ioutil.ReadFile(config.SSH.SSHPrivateKey)
 	if err != nil {
-		log.Errorf("unable to read private key: %v", err)
-		return "SSH unable to read private key"
+		return "SSH unable to read private key", err
 	}
 
 	// Create the Signer for this private key.
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		log.Error("unable to parse private key: %v", err)
-		return "SSH unable to parse private key"
+		return "SSH unable to parse private key", err
 	}
 
 	// Read known_hosts from file
 	hostKeyCallback, err := kh.New(config.SSH.SSHKnownHosts)
 	if err != nil {
-		log.Errorf("could not create hostkeycallback function: ", err)
-		return "SSH could not create hostkeycallback function"
+		return "SSH could not create hostkeycallback function", err
 	}
 
 	sshConfig := &ssh.ClientConfig{
@@ -58,14 +52,12 @@ func RunSshCommand(log *logrus.Entry, config config.Configs, command string) str
 	// Connect to the remote server and perform the SSH handshake.
 	client, err := ssh.Dial("tcp", config.SSH.ServerAddress+":"+config.SSH.Port, sshConfig)
 	if err != nil {
-		log.Errorf("unable to connect: %v", err)
-		return "SSH unable to connect"
+		return "SSH unable to connect", err
 	}
 	defer client.Close()
 	ss, err := client.NewSession()
 	if err != nil {
-		log.Errorf("unable to create SSH session: ", err)
-		return "SSH unable to create SSH session"
+		return "SSH unable to create SSH session", err
 	}
 	defer ss.Close()
 	// Creating the buffer which will hold the remotly executed command's output.
@@ -73,5 +65,5 @@ func RunSshCommand(log *logrus.Entry, config config.Configs, command string) str
 	ss.Stdout = &stdoutBuf
 	ss.Run(command)
 
-	return stdoutBuf.String()
+	return stdoutBuf.String(), nil
 }

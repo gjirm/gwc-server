@@ -29,6 +29,7 @@ COPY go.mod .
 COPY go.sum .
 COPY app/ app/
 COPY internal/ internal/
+COPY templates/* /templates/
 
 RUN mkdir /gwc
 
@@ -55,8 +56,13 @@ COPY --from=builder /etc/group /etc/group
 # Copy static executable
 COPY --from=builder --chown=appuser:appuser /gwc/gwc-server /gwc/gwc-server
 
+# Copy templates
+COPY --from=builder --chown=appuser:appuser /templates/* /gwc/templates/
+
 # Use an unprivileged user.
 USER appuser:appuser
+
+WORKDIR /gwc
 
 EXPOSE 8080
 

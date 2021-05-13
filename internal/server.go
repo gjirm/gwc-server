@@ -1,6 +1,7 @@
-package internal
+package gwc
 
 import (
+	"html/template"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -8,17 +9,11 @@ import (
 	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-
-	"jirm.cz/gwc-server/internal/config"
-	"jirm.cz/gwc-server/internal/ssh"
-	"jirm.cz/gwc-server/internal/validate"
-	"jirm.cz/gwc-server/internal/wg"
 )
 
 // MyServer server instance
-func MyServer(log *logrus.Logger, config config.Configs) {
+func MyServer() {
 
-	log.Info("Starting Webserver")
 	if !(config.Webserver.Debug) {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -30,6 +25,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 	r := gin.Default()
 	r.Use(location.Default())
+	r.LoadHTMLGlob("templates/*")
 
 	// Activate all peers of validated user
 	r.GET("/", func(c *gin.Context) {
@@ -58,7 +54,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -66,11 +62,25 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			user := strings.Split(msg, "@")
 			command := user[0] + " " + c.ClientIP()
 			cLog.Info("Running SSH command: " + command)
-			sshOut := ssh.RunSshCommand(cLog, config, command)
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
 
-			outHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Activate all WireGuard peers</title></head><body><h3>" + sshOut + " </h3></body></html>"
-
-			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+			if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
+				c.HTML(200, "status.html", gin.H{
+					"message": sshOut,
+					"alert":   "alert-danger",
+				})
+			} else {
+				c.HTML(200, "status.html", gin.H{
+					"message": sshOut,
+					"alert":   "alert-success",
+				})
+			}
 
 		} else {
 			cLog.Error(msg)
@@ -100,7 +110,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> run SSH cmd - list user WireGuard peers
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -110,18 +120,43 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			command := user[0] + " " + c.ClientIP() + " list"
 
 			cLog.Info("Running SSH command: " + command)
-			sshOut := ssh.RunSshCommand(cLog, config, command)
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
+
 			peersList := strings.Fields(sshOut)
 
-			headHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>List of WireGuard peers</title></head><body><h3>" + user[0] + " peers</h3><p>Click to activate:<ul>"
-			tailHtml := "</ul></p></body></html>"
-
+			htmlList := ""
+			deviceName := ""
 			for i := 0; i < len(peersList); i++ {
-				headHtml += "<li><a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "'>" + peersList[i] + "</a></li>"
-			}
-			outHtml := headHtml + tailHtml
 
-			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+				if strings.HasPrefix(peersList[i], "pc") {
+					deviceName = "Computer (" + peersList[i] + ")"
+				} else if strings.HasPrefix(peersList[i], "ntb") {
+					deviceName = "Notebook (" + peersList[i] + ")"
+				} else if strings.HasPrefix(peersList[i], "mac") {
+					deviceName = "MacBook (" + peersList[i] + ")"
+				} else {
+					deviceName = "Mobile phone (" + peersList[i] + ")"
+				}
+				htmlList += "<a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "' class='list-group-item list-group-item-action list-group-item-primary'>" + deviceName + "</a></li>"
+			}
+			if htmlList != "" {
+				c.HTML(200, "listPeers.html", gin.H{
+					"user": user[0],
+					"list": template.HTML(htmlList),
+				})
+			} else {
+				c.HTML(200, "listPeers.html", gin.H{
+					"user": user[0],
+					"list": template.HTML("<a href='/list' class='list-group-item list-group-item-action list-group-item-primary disabled' >You have no devices</a></li>"),
+				})
+			}
+
 		} else {
 			cLog.Error(msg)
 			c.String(400, msg)
@@ -150,21 +185,16 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> run SSH cmd - list user WireGuard peers
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
 
 			token := c.Param("token")
 
-			headHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Generate WireGuard peer</title></head><body>"
-			tailHtml := "</p></body></html>"
-
-			headHtml += "<p><a href='" + rURL.Scheme + "://" + c.Request.Host + "/token/" + token + "'>Generate and download WireGuard configuration</p>"
-
-			outHtml := headHtml + tailHtml
-
-			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+			c.HTML(200, "downloadConfig.html", gin.H{
+				"download": template.HTML(rURL.Scheme + "://" + c.Request.Host + "/token/" + token),
+			})
 		} else {
 			cLog.Error(msg)
 			c.String(400, msg)
@@ -190,7 +220,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			return
 		}
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -204,11 +234,25 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 			cLog.Info("Running SSH command: " + command)
 
-			sshOut := ssh.RunSshCommand(cLog, config, command)
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
 
-			outHtml := "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Activate WireGuard peer</title></head><body><h3>" + sshOut + " </h3></body></html>"
-
-			c.Data(200, "text/html; charset=utf-8", []byte(outHtml))
+			if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") || strings.Contains(sshOut, "not found") {
+				c.HTML(200, "status.html", gin.H{
+					"message": sshOut,
+					"alert":   "alert-danger",
+				})
+			} else {
+				c.HTML(200, "status.html", gin.H{
+					"message": sshOut,
+					"alert":   "alert-success",
+				})
+			}
 
 		} else {
 			cLog.Error(msg)
@@ -235,7 +279,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			return
 		}
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -248,7 +292,13 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 			cLog.Info("Running SSH command: " + command)
 
-			sshOut := ssh.RunSshCommand(cLog, config, command)
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
 
 			if strings.HasPrefix(sshOut, "[Interface]") {
 				// Download configuration
@@ -256,8 +306,14 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 				c.Header("Content-Disposition", "attachment; filename=wg_"+user[0]+"_"+peerType[0]+".conf")
 				c.Data(200, "application/octet-stream", []byte(sshOut))
 			} else {
-				// Print as text
-				c.String(200, sshOut)
+				if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") || strings.Contains(sshOut, "not valid") {
+					c.HTML(200, "status.html", gin.H{
+						"message": sshOut,
+						"alert":   "alert-danger",
+					})
+				} else {
+					c.String(200, sshOut)
+				}
 			}
 
 		} else {
@@ -293,7 +349,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> generate new WG configuration
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -306,11 +362,20 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 			cLog.Info("Running SSH command: " + command)
 
-			sshOut := ssh.RunSshCommand(cLog, config, command)
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
 
-			outText := rURL.Scheme + "://" + c.Request.Host + "/d/token/" + sshOut
-
-			c.String(200, outText)
+			if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
+				c.String(200, sshOut)
+			} else {
+				outText := rURL.Scheme + "://" + c.Request.Host + "/d/token/" + sshOut
+				c.String(200, outText)
+			}
 
 		} else {
 			cLog.Error(msg)
@@ -344,7 +409,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> generate new WG configuration
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -359,7 +424,15 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 
 			cLog.Info("Running SSH command: " + command)
 
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
+
+			c.String(200, sshOut)
 
 		} else {
 			cLog.Error(msg)
@@ -393,7 +466,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -404,8 +477,16 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list users"
 
 			cLog.Info("Running SSH command: " + command)
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
-			//c.String(200, command)
+
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
+
+			c.String(200, sshOut)
 
 		} else {
 			cLog.Error(msg)
@@ -439,7 +520,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -450,8 +531,16 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list activated"
 
 			cLog.Info("Running SSH command: " + command)
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
-			//c.String(200, command)
+
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
+
+			c.String(200, sshOut)
 
 		} else {
 			cLog.Error(msg)
@@ -485,7 +574,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -497,7 +586,16 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "expire " + owner
 
 			cLog.Info("Running SSH command: " + command)
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
+
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
+
+			c.String(200, sshOut)
 
 		} else {
 			cLog.Error(msg)
@@ -531,7 +629,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -543,8 +641,16 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "del " + userDelete
 
 			cLog.Info("Running SSH command: " + command)
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
-			//c.String(200, command)
+
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
+
+			c.String(200, sshOut)
 
 		} else {
 			cLog.Error(msg)
@@ -578,7 +684,7 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
@@ -591,8 +697,16 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "del " + userDelete + " " + peerDelete
 
 			cLog.Info("Running SSH command: " + command)
-			c.String(200, ssh.RunSshCommand(cLog, config, command))
-			//c.String(200, command)
+
+			sshOut, err := RunSshCommand(command)
+			if err != nil {
+				cLog.Debugf(sshOut, err)
+				cLog.Error("Error running command")
+				c.String(400, "Error running command")
+				return
+			}
+
+			c.String(200, sshOut)
 
 		} else {
 			cLog.Error(msg)
@@ -626,12 +740,12 @@ func MyServer(log *logrus.Logger, config config.Configs) {
 		}
 
 		// Validate cookie
-		valid, msg := validate.ValidateCookie(config, cookie)
+		valid, msg := ValidateCookie(cookie)
 		if valid {
 			// Cookie is valid -> generate WireGuard keys
 			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
 
-			privKey, pubKey, err := wg.GenerateWGKey()
+			privKey, pubKey, err := GenerateWGKey()
 			if err != nil {
 				msg := "Unable to generate WireGuard Keys"
 				cLog.Error(msg)

@@ -1,4 +1,4 @@
-package wg
+package gwc
 
 import (
 	//"fmt"
