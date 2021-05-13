@@ -40,18 +40,17 @@ if ($Args[0] -eq "build-docker-tag") {
 
 if ($args[0] -eq "run-docker") {
 
-        Write-Host "--> Run Docker container"  -ForegroundColor Green
-        try {
-            docker run --rm -v $PSScriptRoot\config_docker.yml:/gwc/config.yml -v $PSScriptRoot\ed25519_test.key:/gwc/ed25519_test.key -v $PSScriptRoot\known_hosts:/gwc/known_hosts --name gwc -p 8080:8080 jirm/gwc-server
-        }
-        catch {
-            Write-Error $_.Exception
-        }
-        finally {
-            docker stop gwc
-        }
-        exit 0
-
+    Write-Host "--> Run Docker container"  -ForegroundColor Green
+    try {
+        docker run --rm -v $PSScriptRoot\config_docker.yml:/gwc/config.yml -v $PSScriptRoot\ed25519_test.key:/gwc/ed25519_test.key -v $PSScriptRoot\known_hosts:/gwc/known_hosts --name gwc -p 8080:8080 jirm/gwc-server
+    }
+    catch {
+        Write-Error $_.Exception
+    }
+    finally {
+        docker stop gwc
+    }
+    exit 0
 }
 
 if ($args[0] -eq "run") {
