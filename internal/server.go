@@ -27,142 +27,14 @@ func MyServer() {
 	r.Use(location.Default())
 	r.LoadHTMLGlob("templates/*")
 
-	// Activate all peers of validated user
-	r.GET("/", func(c *gin.Context) {
-
-		if !(config.Api.ActivateAll) {
-			c.String(400, "Not enabled")
-			return
-		}
-
-		cLog := log.WithFields(logrus.Fields{
-			"request":   "direct",
-			"operation": "activate",
-			"object":    "all",
-		})
-		// rURL := location.Get(c)
-		// cLog.Info(rURL.Host)
-		// rURL.
-
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
-		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
-			return
-		}
-
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
-
-			user := strings.Split(msg, "@")
-			command := user[0] + " " + c.ClientIP()
-			cLog.Info("Running SSH command: " + command)
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
-				c.HTML(200, "status.html", gin.H{
-					"message": sshOut,
-					"alert":   "alert-danger",
-				})
-			} else {
-				c.HTML(200, "status.html", gin.H{
-					"message": sshOut,
-					"alert":   "alert-success",
-				})
-			}
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
-			return
-		}
-	})
+	// List all peers of validated user
+	r.GET("/", listPeers)
 
 	// List all peers of validated user
-	r.GET("/list", func(c *gin.Context) {
+	r.GET("/list", listPeers)
 
-		rURL := location.Get(c)
-
-		cLog := log.WithFields(logrus.Fields{
-			"request":   "direct",
-			"operation": "list",
-			"object":    "peers",
-		})
-
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
-		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
-			return
-		}
-
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> run SSH cmd - list user WireGuard peers
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
-
-			user := strings.Split(msg, "@")
-
-			command := user[0] + " " + c.ClientIP() + " list"
-
-			cLog.Info("Running SSH command: " + command)
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			peersList := strings.Fields(sshOut)
-
-			htmlList := ""
-			deviceName := ""
-			for i := 0; i < len(peersList); i++ {
-
-				if strings.HasPrefix(peersList[i], "pc") {
-					deviceName = "Computer (" + peersList[i] + ")"
-				} else if strings.HasPrefix(peersList[i], "ntb") {
-					deviceName = "Notebook (" + peersList[i] + ")"
-				} else if strings.HasPrefix(peersList[i], "mac") {
-					deviceName = "MacBook (" + peersList[i] + ")"
-				} else {
-					deviceName = "Mobile phone (" + peersList[i] + ")"
-				}
-				htmlList += "<a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "' class='list-group-item list-group-item-action list-group-item-primary'>" + deviceName + "</a></li>"
-			}
-			if htmlList != "" {
-				c.HTML(200, "listPeers.html", gin.H{
-					"user": user[0],
-					"list": template.HTML(htmlList),
-				})
-			} else {
-				c.HTML(200, "listPeers.html", gin.H{
-					"user": user[0],
-					"list": template.HTML("<a href='/list' class='list-group-item list-group-item-action list-group-item-primary disabled' >You have no devices</a></li>"),
-				})
-			}
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
-			return
-		}
-	})
+	// Activate all peers of validated user
+	r.GET("/activate/all", activateAll)
 
 	// Show URL for generating and download config using token
 	r.GET("/d/token/:token", func(c *gin.Context) {
@@ -766,4 +638,138 @@ func MyServer() {
 
 	portNumber := ":" + strconv.Itoa(config.Webserver.Port)
 	r.Run(portNumber)
+}
+
+// Activate all users peers
+func activateAll(c *gin.Context) {
+
+	if !(config.Api.ActivateAll) {
+		c.String(400, "Not enabled")
+		return
+	}
+
+	cLog := log.WithFields(logrus.Fields{
+		"request":   "direct",
+		"operation": "activate",
+		"object":    "all",
+	})
+
+	// Check if right cookie is present
+	cookie, err := c.Cookie(config.Cookie.Name)
+	if err != nil {
+		msg := "Auth cookie " + config.Cookie.Name + " not found"
+		cLog.Error(msg)
+		c.String(400, msg)
+		return
+	}
+
+	// Validate cookie
+	valid, msg := ValidateCookie(cookie)
+	if valid {
+		// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
+		cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+		user := strings.Split(msg, "@")
+		command := user[0] + " " + c.ClientIP()
+		cLog.Info("Running SSH command: " + command)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
+			return
+		}
+
+		if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
+			c.HTML(200, "status.html", gin.H{
+				"message": sshOut,
+				"alert":   "alert-danger",
+			})
+		} else {
+			c.HTML(200, "status.html", gin.H{
+				"message": sshOut,
+				"alert":   "alert-success",
+			})
+		}
+
+	} else {
+		cLog.Error(msg)
+		c.String(400, msg)
+		return
+	}
+}
+
+// List all users peers
+func listPeers(c *gin.Context) {
+
+	rURL := location.Get(c)
+
+	cLog := log.WithFields(logrus.Fields{
+		"request":   "direct",
+		"operation": "list",
+		"object":    "peers",
+	})
+
+	// Check if right cookie is present
+	cookie, err := c.Cookie(config.Cookie.Name)
+	if err != nil {
+		msg := "Auth cookie " + config.Cookie.Name + " not found"
+		cLog.Error(msg)
+		c.String(400, msg)
+		return
+	}
+
+	// Validate cookie
+	valid, msg := ValidateCookie(cookie)
+	if valid {
+		// Cookie is valid -> run SSH cmd - list user WireGuard peers
+		cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+
+		user := strings.Split(msg, "@")
+
+		command := user[0] + " " + c.ClientIP() + " list"
+
+		cLog.Info("Running SSH command: " + command)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
+			return
+		}
+
+		peersList := strings.Fields(sshOut)
+
+		htmlList := ""
+		deviceName := ""
+		for i := 0; i < len(peersList); i++ {
+
+			if strings.HasPrefix(peersList[i], "pc") {
+				deviceName = "Computer (" + peersList[i] + ")"
+			} else if strings.HasPrefix(peersList[i], "ntb") {
+				deviceName = "Notebook (" + peersList[i] + ")"
+			} else if strings.HasPrefix(peersList[i], "mac") {
+				deviceName = "MacBook (" + peersList[i] + ")"
+			} else {
+				deviceName = "Mobile phone (" + peersList[i] + ")"
+			}
+			htmlList += "<a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "' class='list-group-item list-group-item-action list-group-item-primary'>" + deviceName + "</a></li>"
+		}
+		if htmlList != "" {
+			c.HTML(200, "listPeers.html", gin.H{
+				"user": user[0],
+				"list": template.HTML(htmlList),
+			})
+		} else {
+			c.HTML(200, "listPeers.html", gin.H{
+				"user": user[0],
+				"list": template.HTML("<a href='/list' class='list-group-item list-group-item-action list-group-item-primary disabled' >You have no devices</a></li>"),
+			})
+		}
+
+	} else {
+		cLog.Error(msg)
+		c.String(400, msg)
+		return
+	}
 }
