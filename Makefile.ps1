@@ -1,7 +1,7 @@
 #!/usr/bin/pwsh
 
 $projectName = "Go Wireguard Control server"
-$dt = Get-Date -Format "yyy-MM-dd_HHMMss"
+#$dt = Get-Date -Format "yyy-MM-dd_HHMMss"
 $headhash = git rev-parse --short HEAD
 $tag = git describe --tags --abbrev=0
 $imageName  = "jirm/gwc-server:$($headhash)"
