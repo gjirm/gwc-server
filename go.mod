@@ -4,14 +4,15 @@ go 1.16
 
 require (
 	github.com/gin-contrib/location v0.0.2
-	github.com/gin-gonic/gin v1.7.2
-	github.com/go-playground/validator/v10 v10.7.0 // indirect
-	github.com/leodido/go-urn v1.2.1 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/gin-gonic/gin v1.7.7
+	github.com/go-playground/validator/v10 v10.10.1 // indirect
+	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/viper v1.8.1
-	github.com/ugorji/go v1.2.6 // indirect
-	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
-	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
-	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20210506160403-92e472f520a5
+	github.com/spf13/afero v1.8.2 // indirect
+	github.com/spf13/viper v1.10.1
+	github.com/ugorji/go v1.2.7 // indirect
+	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
+	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
+	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220208144051-fde48d68ee68
+	gopkg.in/ini.v1 v1.66.4 // indirect
 )
