@@ -37,9 +37,10 @@ type ApiConfig struct {
 
 // CookieConfig exported
 type CookieConfig struct {
-	Name   string
-	Secret string
-	Domain string
+	Name     string
+	Secret   string
+	Domain   string
+	Validate bool
 }
 
 // WGSSH exported

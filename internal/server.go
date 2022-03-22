@@ -1,6 +1,7 @@
 package gwc
 
 import (
+	"errors"
 	"html/template"
 	"io/ioutil"
 	"strconv"
@@ -10,6 +11,51 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
+
+// Validate user
+func validateUser(log *logrus.Entry, c *gin.Context) (string, error) {
+
+	user := ""
+	valid := false
+
+	if config.Cookie.Validate {
+		// Validate if cookie of the user is valid
+		cookie, err := c.Cookie(config.Cookie.Name)
+		if err != nil {
+			msg := "Auth cookie " + config.Cookie.Name + " not found"
+			log.Error(msg)
+			return msg, err
+		}
+
+		// Validate cookie
+		valid, user = ValidateCookie(cookie)
+		if valid {
+
+			log.Info("Valid request by " + user + " from IP " + c.ClientIP())
+
+		} else {
+			log.Error(user)
+			return user, err
+		}
+
+	} else {
+		// Do not validate cookie - get user from X-Forwarded-User (for reverse proxies)
+		// Be cautious!
+		user = c.Request.Header.Get("X-Forwarded-User")
+		if len(strings.TrimSpace(user)) == 0 {
+			msg := "X-Forwarded-User not set"
+			log.Error(msg)
+			return msg, errors.New(msg)
+		}
+
+		log.WithFields(logrus.Fields{
+			"user": user,
+		}).Info("Validated request")
+
+	}
+
+	return user, nil
+}
 
 // MyServer server instance
 func MyServer() {
@@ -47,31 +93,17 @@ func MyServer() {
 			"object":    "peer",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> run SSH cmd - list user WireGuard peers
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		token := c.Param("token")
 
-			token := c.Param("token")
-
-			c.HTML(200, "downloadConfig.html", gin.H{
-				"download": template.HTML(rURL.Scheme + "://" + c.Request.Host + "/token/" + token),
-			})
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
-			return
-		}
+		c.HTML(200, "downloadConfig.html", gin.H{
+			"download": template.HTML(rURL.Scheme + "://" + c.Request.Host + "/token/" + token),
+		})
 	})
 
 	// Activate users peer
@@ -83,53 +115,40 @@ func MyServer() {
 			"object":    "peer",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
 
-			user := strings.Split(msg, "@")
+		user := strings.Split(userMail, "@")
 
-			// Peer name
-			peer := c.Param("peer")
+		// Peer name
+		peer := c.Param("peer")
 
-			command := user[0] + " " + c.ClientIP() + " " + peer
+		command := user[0] + " " + c.ClientIP() + " " + peer
 
-			cLog.Info("Running SSH command: " + command)
+		cLog.Info("Running SSH command: " + command)
 
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") || strings.Contains(sshOut, "not found") {
-				c.HTML(200, "status.html", gin.H{
-					"message": sshOut,
-					"alert":   "alert-danger",
-				})
-			} else {
-				c.HTML(200, "status.html", gin.H{
-					"message": sshOut,
-					"alert":   "alert-success",
-				})
-			}
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
+		}
+
+		if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") || strings.Contains(sshOut, "not found") {
+			c.HTML(200, "status.html", gin.H{
+				"message": sshOut,
+				"alert":   "alert-danger",
+			})
+		} else {
+			c.HTML(200, "status.html", gin.H{
+				"message": sshOut,
+				"alert":   "alert-success",
+			})
 		}
 	})
 
@@ -142,56 +161,43 @@ func MyServer() {
 			"object":    "peer",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
 
-			user := strings.Split(msg, "@")
+		user := strings.Split(userMail, "@")
 
-			token := c.Param("token")
+		token := c.Param("token")
 
-			command := user[0] + " " + c.ClientIP() + " token " + token
+		command := user[0] + " " + c.ClientIP() + " token " + token
 
-			cLog.Info("Running SSH command: " + command)
+		cLog.Info("Running SSH command: " + command)
 
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			if strings.HasPrefix(sshOut, "[Interface]") {
-				// Download configuration
-				peerType := strings.Split(token, "-")
-				c.Header("Content-Disposition", "attachment; filename=wg_"+user[0]+"_"+peerType[0]+".conf")
-				c.Data(200, "application/octet-stream", []byte(sshOut))
-			} else {
-				if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") || strings.Contains(sshOut, "not valid") {
-					c.HTML(200, "status.html", gin.H{
-						"message": sshOut,
-						"alert":   "alert-danger",
-					})
-				} else {
-					c.String(200, sshOut)
-				}
-			}
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
+		}
+
+		if strings.HasPrefix(sshOut, "[Interface]") {
+			// Download configuration
+			peerType := strings.Split(token, "-")
+			c.Header("Content-Disposition", "attachment; filename=wg_"+user[0]+"_"+peerType[0]+".conf")
+			c.Data(200, "application/octet-stream", []byte(sshOut))
+		} else {
+			if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") || strings.Contains(sshOut, "not valid") {
+				c.HTML(200, "status.html", gin.H{
+					"message": sshOut,
+					"alert":   "alert-danger",
+				})
+			} else {
+				c.String(200, sshOut)
+			}
 		}
 	})
 
@@ -211,48 +217,34 @@ func MyServer() {
 			"object":    "peer",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> generate new WG configuration
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		user := strings.Split(userMail, "@")
+		suffix := c.Param("suffix")
+		totp := c.Param("totp")
 
-			user := strings.Split(msg, "@")
-			suffix := c.Param("suffix")
-			totp := c.Param("totp")
+		command := user[0] + " " + c.ClientIP() + " " + totp + " " + "token " + suffix
 
-			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "token " + suffix
+		cLog.Info("Running SSH command: " + command)
 
-			cLog.Info("Running SSH command: " + command)
-
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
-				c.String(200, sshOut)
-			} else {
-				outText := rURL.Scheme + "://" + c.Request.Host + "/d/token/" + sshOut
-				c.String(200, outText)
-			}
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
+		}
+
+		if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
+			c.String(200, sshOut)
+		} else {
+			outText := rURL.Scheme + "://" + c.Request.Host + "/d/token/" + sshOut
+			c.String(200, outText)
 		}
 
 	})
@@ -271,46 +263,32 @@ func MyServer() {
 			"object":    "user",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> generate new WG configuration
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		user := strings.Split(userMail, "@")
+		name := c.Param("name")
+		suffix := c.Param("suffix")
+		totp := c.Param("totp")
 
-			user := strings.Split(msg, "@")
-			name := c.Param("name")
-			suffix := c.Param("suffix")
-			totp := c.Param("totp")
+		// :admin :ip :totp add :user :suffix
+		command := user[0] + " " + c.ClientIP() + " " + totp + " " + "add " + name + " " + suffix
 
-			// :admin :ip :totp add :user :suffix
-			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "add " + name + " " + suffix
+		cLog.Info("Running SSH command: " + command)
 
-			cLog.Info("Running SSH command: " + command)
-
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			c.String(200, sshOut)
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
 		}
+
+		c.String(200, sshOut)
 
 	})
 
@@ -328,43 +306,29 @@ func MyServer() {
 			"object":    "users",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		user := strings.Split(userMail, "@")
+		totp := c.Param("totp")
 
-			user := strings.Split(msg, "@")
-			totp := c.Param("totp")
+		command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list users"
 
-			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list users"
+		cLog.Info("Running SSH command: " + command)
 
-			cLog.Info("Running SSH command: " + command)
-
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			c.String(200, sshOut)
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
 		}
+
+		c.String(200, sshOut)
 
 	})
 
@@ -382,43 +346,29 @@ func MyServer() {
 			"object":    "activated",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		user := strings.Split(userMail, "@")
+		totp := c.Param("totp")
 
-			user := strings.Split(msg, "@")
-			totp := c.Param("totp")
+		command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list activated"
 
-			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "list activated"
+		cLog.Info("Running SSH command: " + command)
 
-			cLog.Info("Running SSH command: " + command)
-
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			c.String(200, sshOut)
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
 		}
+
+		c.String(200, sshOut)
 
 	})
 
@@ -436,44 +386,30 @@ func MyServer() {
 			"object":    "user",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		user := strings.Split(userMail, "@")
+		owner := c.Param("owner")
+		totp := c.Param("totp")
 
-			user := strings.Split(msg, "@")
-			owner := c.Param("owner")
-			totp := c.Param("totp")
+		command := user[0] + " " + c.ClientIP() + " " + totp + " " + "expire " + owner
 
-			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "expire " + owner
+		cLog.Info("Running SSH command: " + command)
 
-			cLog.Info("Running SSH command: " + command)
-
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			c.String(200, sshOut)
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
 		}
+
+		c.String(200, sshOut)
 
 	})
 
@@ -491,44 +427,30 @@ func MyServer() {
 			"user":      "user",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		user := strings.Split(userMail, "@")
+		userDelete := c.Param("user")
+		totp := c.Param("totp")
 
-			user := strings.Split(msg, "@")
-			userDelete := c.Param("user")
-			totp := c.Param("totp")
+		command := user[0] + " " + c.ClientIP() + " " + totp + " " + "del " + userDelete
 
-			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "del " + userDelete
+		cLog.Info("Running SSH command: " + command)
 
-			cLog.Info("Running SSH command: " + command)
-
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			c.String(200, sshOut)
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
 		}
+
+		c.String(200, sshOut)
 
 	})
 
@@ -546,45 +468,31 @@ func MyServer() {
 			"object":    "peer",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+		user := strings.Split(userMail, "@")
+		userDelete := c.Param("user")
+		peerDelete := c.Param("peer")
+		totp := c.Param("totp")
 
-			user := strings.Split(msg, "@")
-			userDelete := c.Param("user")
-			peerDelete := c.Param("peer")
-			totp := c.Param("totp")
+		command := user[0] + " " + c.ClientIP() + " " + totp + " " + "del " + userDelete + " " + peerDelete
 
-			command := user[0] + " " + c.ClientIP() + " " + totp + " " + "del " + userDelete + " " + peerDelete
+		cLog.Info("Running SSH command: " + command)
 
-			cLog.Info("Running SSH command: " + command)
-
-			sshOut, err := RunSshCommand(command)
-			if err != nil {
-				cLog.Debugf(sshOut, err)
-				cLog.Error("Error running command")
-				c.String(400, "Error running command")
-				return
-			}
-
-			c.String(200, sshOut)
-
-		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
+		sshOut, err := RunSshCommand(command)
+		if err != nil {
+			cLog.Debugf(sshOut, err)
+			cLog.Error("Error running command")
+			c.String(400, "Error running command")
 			return
 		}
+
+		c.String(200, sshOut)
 
 	})
 
@@ -602,38 +510,25 @@ func MyServer() {
 			"object":    "keys",
 		})
 
-		// Check if right cookie is present
-		cookie, err := c.Cookie(config.Cookie.Name)
+		// Is user valid?
+		userMail, err := validateUser(cLog, c)
 		if err != nil {
-			msg := "Auth cookie " + config.Cookie.Name + " not found"
-			cLog.Error(msg)
-			c.String(400, msg)
+			c.String(400, userMail)
 			return
 		}
 
-		// Validate cookie
-		valid, msg := ValidateCookie(cookie)
-		if valid {
-			// Cookie is valid -> generate WireGuard keys
-			cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
-
-			privKey, pubKey, err := GenerateWGKey()
-			if err != nil {
-				msg := "Unable to generate WireGuard Keys"
-				cLog.Error(msg)
-				c.String(400, msg)
-			} else {
-				c.JSON(200, gin.H{
-					"PrivateKey": pubKey,
-					"PublicKey":  privKey,
-				})
-			}
-
+		privKey, pubKey, err := GenerateWGKey()
+		if err != nil {
+			msg := "Unable to generate WireGuard Keys"
+			cLog.Error(msg)
+			c.String(400, msg)
 		} else {
-			cLog.Error(msg)
-			c.String(400, msg)
-			return
+			c.JSON(200, gin.H{
+				"PrivateKey": pubKey,
+				"PublicKey":  privKey,
+			})
 		}
+
 	})
 
 	portNumber := ":" + strconv.Itoa(config.Webserver.Port)
@@ -654,48 +549,34 @@ func activateAll(c *gin.Context) {
 		"object":    "all",
 	})
 
-	// Check if right cookie is present
-	cookie, err := c.Cookie(config.Cookie.Name)
+	// Is user valid?
+	userMail, err := validateUser(cLog, c)
 	if err != nil {
-		msg := "Auth cookie " + config.Cookie.Name + " not found"
-		cLog.Error(msg)
-		c.String(400, msg)
+		c.String(400, userMail)
 		return
 	}
 
-	// Validate cookie
-	valid, msg := ValidateCookie(cookie)
-	if valid {
-		// Cookie is valid -> run SSH cmd - avtivate users WireGuard peers
-		cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
-
-		user := strings.Split(msg, "@")
-		command := user[0] + " " + c.ClientIP()
-		cLog.Info("Running SSH command: " + command)
-		sshOut, err := RunSshCommand(command)
-		if err != nil {
-			cLog.Debugf(sshOut, err)
-			cLog.Error("Error running command")
-			c.String(400, "Error running command")
-			return
-		}
-
-		if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
-			c.HTML(200, "status.html", gin.H{
-				"message": sshOut,
-				"alert":   "alert-danger",
-			})
-		} else {
-			c.HTML(200, "status.html", gin.H{
-				"message": sshOut,
-				"alert":   "alert-success",
-			})
-		}
-
-	} else {
-		cLog.Error(msg)
-		c.String(400, msg)
+	user := strings.Split(userMail, "@")
+	command := user[0] + " " + c.ClientIP()
+	cLog.Info("Running SSH command: " + command)
+	sshOut, err := RunSshCommand(command)
+	if err != nil {
+		cLog.Debugf(sshOut, err)
+		cLog.Error("Error running command")
+		c.String(400, "Error running command")
 		return
+	}
+
+	if strings.Contains(sshOut, "failed") || strings.Contains(sshOut, "Failed") {
+		c.HTML(200, "status.html", gin.H{
+			"message": sshOut,
+			"alert":   "alert-danger",
+		})
+	} else {
+		c.HTML(200, "status.html", gin.H{
+			"message": sshOut,
+			"alert":   "alert-success",
+		})
 	}
 }
 
@@ -710,66 +591,51 @@ func listPeers(c *gin.Context) {
 		"object":    "peers",
 	})
 
-	// Check if right cookie is present
-	cookie, err := c.Cookie(config.Cookie.Name)
+	userMail, err := validateUser(cLog, c)
 	if err != nil {
-		msg := "Auth cookie " + config.Cookie.Name + " not found"
-		cLog.Error(msg)
-		c.String(400, msg)
+		c.String(400, userMail)
 		return
 	}
 
-	// Validate cookie
-	valid, msg := ValidateCookie(cookie)
-	if valid {
-		// Cookie is valid -> run SSH cmd - list user WireGuard peers
-		cLog.Info("Valid request by " + msg + " from IP " + c.ClientIP())
+	user := strings.Split(userMail, "@")
 
-		user := strings.Split(msg, "@")
+	command := user[0] + " " + c.ClientIP() + " list"
 
-		command := user[0] + " " + c.ClientIP() + " list"
-
-		cLog.Info("Running SSH command: " + command)
-		sshOut, err := RunSshCommand(command)
-		if err != nil {
-			cLog.Debugf(sshOut, err)
-			cLog.Error("Error running command")
-			c.String(400, "Error running command")
-			return
-		}
-
-		peersList := strings.Fields(sshOut)
-
-		htmlList := ""
-		deviceName := ""
-		for i := 0; i < len(peersList); i++ {
-
-			if strings.HasPrefix(peersList[i], "pc") {
-				deviceName = "Computer (" + peersList[i] + ")"
-			} else if strings.HasPrefix(peersList[i], "ntb") {
-				deviceName = "Notebook (" + peersList[i] + ")"
-			} else if strings.HasPrefix(peersList[i], "mac") {
-				deviceName = "MacBook (" + peersList[i] + ")"
-			} else {
-				deviceName = "Mobile phone (" + peersList[i] + ")"
-			}
-			htmlList += "<a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "' class='list-group-item list-group-item-action list-group-item-primary'>" + deviceName + "</a></li>"
-		}
-		if htmlList != "" {
-			c.HTML(200, "listPeers.html", gin.H{
-				"user": user[0],
-				"list": template.HTML(htmlList),
-			})
-		} else {
-			c.HTML(200, "listPeers.html", gin.H{
-				"user": user[0],
-				"list": template.HTML("<a href='/list' class='list-group-item list-group-item-action list-group-item-primary disabled' >You have no devices</a></li>"),
-			})
-		}
-
-	} else {
-		cLog.Error(msg)
-		c.String(400, msg)
+	cLog.Info("Running SSH command: " + command)
+	sshOut, err := RunSshCommand(command)
+	if err != nil {
+		cLog.Debugf(sshOut, err)
+		cLog.Error("Error running command")
+		c.String(400, "Error running command")
 		return
+	}
+
+	peersList := strings.Fields(sshOut)
+
+	htmlList := ""
+	deviceName := ""
+	for i := 0; i < len(peersList); i++ {
+
+		if strings.HasPrefix(peersList[i], "pc") {
+			deviceName = "Computer (" + peersList[i] + ")"
+		} else if strings.HasPrefix(peersList[i], "ntb") {
+			deviceName = "Notebook (" + peersList[i] + ")"
+		} else if strings.HasPrefix(peersList[i], "mac") {
+			deviceName = "MacBook (" + peersList[i] + ")"
+		} else {
+			deviceName = "Mobile phone (" + peersList[i] + ")"
+		}
+		htmlList += "<a href='" + rURL.Scheme + "://" + c.Request.Host + "/activate/" + peersList[i] + "' class='list-group-item list-group-item-action list-group-item-primary'>" + deviceName + "</a></li>"
+	}
+	if htmlList != "" {
+		c.HTML(200, "listPeers.html", gin.H{
+			"user": user[0],
+			"list": template.HTML(htmlList),
+		})
+	} else {
+		c.HTML(200, "listPeers.html", gin.H{
+			"user": user[0],
+			"list": template.HTML("<a href='/list' class='list-group-item list-group-item-action list-group-item-primary disabled' >You have no devices</a></li>"),
+		})
 	}
 }

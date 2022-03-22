@@ -9,6 +9,7 @@ cookie:
     name: "_forward_auth"
     secret: "xxxxx"
     domain: "example.com"
+    validate: true
 
 api:
     # Enable admin API /api/...
