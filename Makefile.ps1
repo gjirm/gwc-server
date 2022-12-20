@@ -4,9 +4,12 @@ $projectName = "Go Wireguard Control server"
 #$dt = Get-Date -Format "yyy-MM-dd_HHMMss"
 $headhash = git rev-parse --short HEAD
 $tag = git describe --tags --abbrev=0
-$imageName  = "jirm/gwc-server:$($headhash)"
-$imageNameTag = "jirm/gwc-server:$($tag)"
-$imageLatest = "jirm/gwc-server:latest"
+# $imageName  = "jirm/gwc-server:$($headhash)"
+# $imageNameTag = "jirm/gwc-server:$($tag)"
+# $imageLatest = "jirm/gwc-server:latest"
+$imageName  = "ghcr.io/gjirm/gwc-server:$($headhash)"
+$imageNameTag = "ghcr.io/gjirm/gwc-server:$($tag)"
+$imageLatest = "ghcr.io/gjirm/gwc-server:latest"
 
 #$minisignKey = "W:\keys\jirm-minisign-2020.key"
 
