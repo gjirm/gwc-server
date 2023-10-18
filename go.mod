@@ -6,18 +6,12 @@ require (
 	github.com/gin-contrib/location v0.0.2
 	github.com/gin-gonic/gin v1.9.1
 	github.com/sirupsen/logrus v1.9.3
-<<<<<<< HEAD
 	github.com/spf13/viper v1.17.0
 	golang.org/x/crypto v0.14.0
-=======
-	github.com/spf13/viper v1.16.0
-	golang.org/x/crypto v0.13.0
->>>>>>> a8f20dd3f43a511a4faa6f997538073241b5c4b5
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6
 )
 
 require (
-<<<<<<< HEAD
 	github.com/bytedance/sonic v1.10.2 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
 	github.com/chenzhuoyu/iasm v0.9.0 // indirect
@@ -27,17 +21,6 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.15.5 // indirect
-=======
-	github.com/bytedance/sonic v1.10.0 // indirect
-	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
-	github.com/chenzhuoyu/iasm v0.9.0 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
-	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/go-playground/locales v0.14.1 // indirect
-	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.15.3 // indirect
->>>>>>> a8f20dd3f43a511a4faa6f997538073241b5c4b5
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
