@@ -2,7 +2,7 @@
 
 Go Wireguard Control Server
 
-Work in prgress...
+Work in progress...
 
 TODO:
 
